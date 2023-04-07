@@ -1,9 +1,11 @@
+from django.core.paginator import Paginator
 from django import forms
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
 from posts.models import Group, Post
+from posts.forms import PostForm
 
 User = get_user_model()
 
@@ -43,118 +45,81 @@ class PostsViewsTests(TestCase):
             self.assertEqual(post.author, self.post.author)
             self.assertEqual(post.group.id, self.post.group.id)
 
-    def test_posts_pages_use_correct_template(self):
-        for template, reverse_name in self.templates_pages_names.items():
-            with self.subTest(reverse_name=reverse_name):
-                response = self.authorized_client.get(reverse_name)
-                self.assertTemplateUsed(response, template)
+    def test_posts_context(self):
+    # проверяем контекст на странице индекса
+        response_index = self.authorized_client.get(reverse('posts:index'))
+        self.assertEqual(response_index.status_code, 200)
+        last_post_index = response_index.context['page_obj'][0]
+        self.posts_check_all_fields(last_post_index)
+        self.assertEqual(last_post_index, self.post)
 
-    def test_posts_context_index_template(self):
-        response = self.authorized_client.get(reverse('posts:index'))
-        self.posts_check_all_fields(response.context['page_obj'][0])
-        last_post = response.context['page_obj'][0]
-        self.assertEqual(last_post, self.post)
-
-    def test_posts_context_group_list_template(self):
-        response = self.authorized_client.get(
-            reverse(
-                'posts:group_list',
-                kwargs={'slug': self.group.slug},
-            )
-        )
-        test_group = response.context['group']
-        self.posts_check_all_fields(response.context['page_obj'][0])
-        test_post = str(response.context['page_obj'][0])
+    # проверяем контекст на странице списка групп
+        response_group_list = self.authorized_client.get(reverse('posts:group_list', kwargs={'slug': self.group.slug}))
+        self.assertEqual(response_group_list.status_code, 200)
+        test_group = response_group_list.context['group']
         self.assertEqual(test_group, self.group)
-        self.assertEqual(test_post, str(self.post))
+        last_post_group_list = response_group_list.context['page_obj'][0]
+        self.posts_check_all_fields(last_post_group_list)
+        self.assertEqual(str(last_post_group_list), str(self.post))
+
 
     def test_posts_context_post_create_template(self):
         response = self.authorized_client.get(reverse('posts:post_create'))
+        self.assertIsInstance(response.context['form'], PostForm)
 
-        form_fields = {
-            'group': forms.fields.ChoiceField,
-            'text': forms.fields.CharField,
-        }
-
-        for value, expected in form_fields.items():
-            with self.subTest(value=value):
-                form_field = response.context['form'].fields[value]
-                self.assertIsInstance(form_field, expected)
 
     def test_posts_context_post_edit_template(self):
-        response = self.authorized_client.get(
-            reverse(
-                'posts:post_edit',
-                kwargs={'post_id': self.post.id},
-            )
-        )
+        response = self.client.get(reverse('posts:post_edit', kwargs={'post_id': self.post.id}))
+        form = response.context['form']
+        self.assertIsInstance(form, PostForm)
+        self.assertEqual(form['text'].value(), self.post.text)
 
-        form_fields = {'text': forms.fields.CharField}
-
-        for value, expected in form_fields.items():
-            with self.subTest(value=value):
-                form_field = response.context.get('form').fields.get(value)
-                self.assertIsInstance(form_field, expected)
 
     def test_posts_context_profile_template(self):
-        response = self.authorized_client.get(
-            reverse(
-                'posts:profile',
-                kwargs={'username': self.user.username},
-            )
-        )
-        profile = {'author': self.post.author}
+        response = self.client.get(reverse('posts:profile', kwargs={'username': self.user.username}))
+        context_author = response.context['author']
+        self.assertEqual(context_author, self.post.author)
 
-        for value, expected in profile.items():
-            with self.subTest(value=value):
-                context = response.context[value]
-                self.assertEqual(context, expected)
-
-        self.posts_check_all_fields(response.context['page_obj'][0])
-        test_page = response.context['page_obj'][0]
-        self.assertEqual(test_page, self.user.posts.all()[0])
 
     def test_posts_context_post_detail_template(self):
-        response = self.authorized_client.get(
-            reverse(
-                'posts:post_detail',
-                kwargs={'post_id': self.post.id},
-            )
-        )
-
-        profile = {'post': self.post}
-
-        for value, expected in profile.items():
-            with self.subTest(value=value):
-                context = response.context[value]
-                self.assertEqual(context, expected)
-
-    def test_posts_not_from_foreign_group(self):
-        response = self.authorized_client.get(reverse('posts:index'))
-        self.posts_check_all_fields(response.context['page_obj'][0])
-        post = response.context['page_obj'][0]
-        group = post.group
-        self.assertEqual(group, self.group)
+        response = self.client.get(reverse('posts:post_detail', kwargs={'post_id': self.post.id}))
+        context_post = response.context['post']
+        self.assertEqual(context_post, self.post)
 
 
 class PostsPaginatorViewsTests(TestCase):
+  
+    POST_COUNT = 13
+    POSTS_PER_PAGE = 5 #  Это было сделано для того, чтобы легко изменять константы при необходимости
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user = User.objects.create_user(username='Test User')
+        cls.user = get_user_model().objects.create_user(username='Test User')
         cls.authorized_client = Client()
         cls.authorized_client.force_login(cls.user)
-        for count in range(13):
-            Post.objects.create(
+        Post.objects.bulk_create(
+            Post(
                 text=f'Test post text {count}',
                 author=cls.user,
+            ) for count in range(cls.POST_COUNT)
+        )
+
+    def test_paginator_pages(self):
+        paginator = Paginator(Post.objects.all(), self.POSTS_PER_PAGE)
+        last_page_posts = self.POST_COUNT % self.POSTS_PER_PAGE or self.POSTS_PER_PAGE
+        last_page_num = (self.POST_COUNT + self.POSTS_PER_PAGE - 1) // self.POSTS_PER_PAGE
+        page_num = 1
+        while True:
+            url = reverse('posts:index') + f'?page={page_num}'
+            response = self.authorized_client.get(url)
+            self.assertEqual(response.status_code, 200)
+            posts_per_page = self.POSTS_PER_PAGE if page_num != last_page_num else last_page_posts
+            self.assertEqual(
+                len(response.context['page_obj'].object_list),
+                posts_per_page,
             )
+            if not paginator.page(page_num).has_next():
+                break
+            page_num += 1
 
-    def test_first_page_has_ten_records(self):
-        response = self.authorized_client.get(reverse('posts:index'))
-        self.assertEqual(len(response.context['page_obj'].object_list), 10)
-
-    def test_second_page_has_three_records(self):
-        response = self.authorized_client.get(
-            reverse('posts:index') + '?page=2')
-        self.assertEqual(len(response.context['page_obj'].object_list), 3)

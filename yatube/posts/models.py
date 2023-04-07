@@ -3,6 +3,7 @@ from django.db import models
 
 
 class Post(models.Model):
+    FIRST_FIFTEEN_CHARACTERS = 15
     text = models.TextField(verbose_name='Текст статьи',
                             help_text='Введите текст статьи')
     pub_date = models.DateTimeField(auto_now_add=True,

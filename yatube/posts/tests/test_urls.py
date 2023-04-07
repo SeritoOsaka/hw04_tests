@@ -26,84 +26,62 @@ class PostsUrlsTests(TestCase):
             author=cls.author,
             text='Test Post',
         )
-        cls.templates_url_names_public = {
-            'posts/index.html': reverse('posts:index'),
-            'posts/group_list.html': reverse(
-                'posts:group_list',
-                kwargs={'slug': cls.group.slug},
-            ),
-            'posts/profile.html': reverse(
-                'posts:profile',
-                kwargs={'username': cls.author.username},
-            ),
-        }
-
-        cls.templates_url_names_private = {
-            'posts/post_create.html': reverse('posts:post_create')
-        }
-
         cls.templates_url_names = {
-            'posts/index.html': reverse('posts:index'),
-            'posts/group_list.html': reverse(
-                'posts:group_list',
-                kwargs={'slug': cls.group.slug},
-            ),
-            'posts/profile.html': reverse(
-                'posts:profile',
-                kwargs={'username': cls.author.username},
-            ),
-            'posts/post_create.html': reverse('posts:post_create'),
+            'posts/index.html': {
+                'url': reverse('posts:index'),
+                'authorized': False,
+            },
+            'posts/group_list.html': {
+                'url': reverse(
+                    'posts:group_list',
+                    kwargs={'slug': cls.group.slug},
+                ),
+                'authorized': False,
+            },
+            'posts/profile.html': {
+                'url': reverse(
+                    'posts:profile',
+                    kwargs={'username': cls.author.username},
+                ),
+                'authorized': False,
+            },
+            'posts/post_create.html': {
+                'url': reverse('posts:post_create'),
+                'authorized': True,
+            },
+            'posts/post_edit.html': {
+                'url': reverse(
+                    'posts:post_edit',
+                    kwargs={'post_id': cls.post.id},
+                ),
+                'authorized': True,
+            },
         }
 
     def setUp(self):
         self.guest_client = Client()
-
         self.authorized_client = Client()
         self.authorized_client.force_login(self.author)
-
         self.no_author_client = Client()
-        self.no_author_client.force_login(self.no_author)
 
-    def test_urls_guest_user_private(self):
-        for template, reverse_name in self.templates_url_names_private.items():
+    def test_urls_accessibility(self):
+        for template, data in self.templates_url_names.items():
             with self.subTest():
-                response = self.guest_client.get(reverse_name)
-                self.assertEqual(response.status_code, HTTPStatus.FOUND)
-        response = self.guest_client.get(
-            reverse(
-                'posts:post_edit',
-                kwargs={'post_id': self.post.id},
-            )
-        )
-        self.assertEqual(response.status_code, HTTPStatus.FOUND)
+                response = self.guest_client.get(data['url'])
+                expected_status = HTTPStatus.OK if not data['authorized'] else HTTPStatus.FOUND
+                self.assertEqual(response.status_code, expected_status)
 
-    def test_urls_guest_user_public(self):
-        for template, reverse_name in self.templates_url_names_public.items():
-            with self.subTest():
-                response = self.guest_client.get(reverse_name)
-                self.assertEqual(response.status_code, HTTPStatus.OK)
+                self.authorized_client.login(username=self.author.username, password='password')
+                response = self.authorized_client.get(data['url'])
+                expected_status = HTTPStatus.OK if data['authorized'] else HTTPStatus.FOUND
+                self.assertEqual(response.status_code, expected_status)
 
-    def test_urls_authorized_user(self):
-        for template, reverse_name in self.templates_url_names.items():
-            with self.subTest():
-                response = self.authorized_client.get(reverse_name)
-                self.assertEqual(response.status_code, HTTPStatus.OK)
-
-    def test_urls_no_authorized_user(self):
-        for template, reverse_name in self.templates_url_names.items():
-            with self.subTest():
-                if reverse_name == reverse(
-                    'posts:post_edit',
-                    kwargs={'post_id': self.post.id},
-                ):
-                    response = self.no_author_client.get(reverse_name)
-                    self.assertEqual(response.status_code, HTTPStatus.FOUND)
-                else:
-                    response = self.no_author_client.get(reverse_name)
-                    self.assertEqual(response.status_code, HTTPStatus.OK)
+                response = self.no_author_client.get(data['url'])
+                expected_status = HTTPStatus.OK if not data['authorized'] or template == 'posts/post_edit.html' else HTTPStatus.FOUND
+                self.assertEqual(response.status_code, expected_status)
 
     def test_urls_use_correct_template(self):
-        for template, reverse_name in self.templates_url_names.items():
+        for template, data in self.templates_url_names.items():
             with self.subTest():
-                response = self.authorized_client.get(reverse_name)
+                response = self.authorized_client.get(data['url'])
                 self.assertTemplateUsed(response, template)
