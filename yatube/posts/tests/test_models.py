@@ -18,7 +18,6 @@ class ModelsTest(TestCase):
             group=cls.group,
         )
 
-
     def test_group_model(self):
         group = ModelsTest.group
         self.assertEqual(str(group), group.title)
@@ -31,7 +30,6 @@ class ModelsTest(TestCase):
                 self.assertEqual(
                     group._meta.get_field(value).verbose_name, expected
                 )
-
 
     def test_post_model(self):
         post = ModelsTest.post

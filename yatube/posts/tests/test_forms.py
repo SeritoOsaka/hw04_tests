@@ -34,12 +34,13 @@ class PostsFormsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertRedirects(response, reverse('posts:index'))
         self.assertEqual(Post.objects.count(), post_count + 1)
-        created_post = Post.objects.get(text='Test form post', group=self.group.id)
+        created_post = Post.objects.get(
+            text='Test form post',
+            group=self.group.id,
+        )
         self.assertEqual(created_post.text, form_data['text'])
         self.assertEqual(created_post.author, self.user)
         self.assertEqual(created_post.group, self.group)
-
-
 
     def test_posts_forms_edit_post(self):
         form_data = {
@@ -50,9 +51,13 @@ class PostsFormsTests(TestCase):
             'posts:post_edit',
             kwargs={'post_id': self.post.id},
         ), data=form_data)
-        self.assertRedirects(response, reverse('posts:post_detail', kwargs={'username': self.user.username, 'post_id': self.post.id}))
+        self.assertRedirects(
+            response,
+            reverse('posts:post_detail',
+                    kwargs={'username': self.user.username,
+                            'post_id': self.post.id})
+        )
         edited_post = Post.objects.get(id=self.post.id)
         self.assertEqual(edited_post.text, 'New post text')
         self.assertEqual(edited_post.group, self.group)
         self.assertEqual(edited_post.author, self.user)
-

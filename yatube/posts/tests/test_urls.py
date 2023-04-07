@@ -68,16 +68,27 @@ class PostsUrlsTests(TestCase):
         for template, data in self.templates_url_names.items():
             with self.subTest():
                 response = self.guest_client.get(data['url'])
-                expected_status = HTTPStatus.OK if not data['authorized'] else HTTPStatus.FOUND
+                expected_status = (
+                    HTTPStatus.OK if not data['authorized']
+                    else HTTPStatus.FOUND
+                )
+
                 self.assertEqual(response.status_code, expected_status)
 
-                self.authorized_client.login(username=self.author.username, password='password')
+                self.authorized_client.login(username=self.author.username,
+                                             password='password')
                 response = self.authorized_client.get(data['url'])
-                expected_status = HTTPStatus.OK if data['authorized'] else HTTPStatus.FOUND
+                expected_status = (
+                    HTTPStatus.OK if data['authorized']
+                    else HTTPStatus.FOUND
+                )
                 self.assertEqual(response.status_code, expected_status)
 
                 response = self.no_author_client.get(data['url'])
-                expected_status = HTTPStatus.OK if not data['authorized'] or template == 'posts/post_edit.html' else HTTPStatus.FOUND
+                expected_status = (
+                    HTTPStatus.OK if not data['authorized']
+                    or template == 'posts/post_edit.html' else HTTPStatus.FOUND
+                )
                 self.assertEqual(response.status_code, expected_status)
 
     def test_urls_use_correct_template(self):

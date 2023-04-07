@@ -1,5 +1,4 @@
 from django.core.paginator import Paginator
-from django import forms
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -46,15 +45,14 @@ class PostsViewsTests(TestCase):
             self.assertEqual(post.group.id, self.post.group.id)
 
     def test_posts_context(self):
-    # проверяем контекст на странице индекса
         response_index = self.authorized_client.get(reverse('posts:index'))
         self.assertEqual(response_index.status_code, 200)
         last_post_index = response_index.context['page_obj'][0]
         self.posts_check_all_fields(last_post_index)
         self.assertEqual(last_post_index, self.post)
 
-    # проверяем контекст на странице списка групп
-        response_group_list = self.authorized_client.get(reverse('posts:group_list', kwargs={'slug': self.group.slug}))
+        response_group_list = self.authorized_client.get(
+            reverse('posts:group_list', kwargs={'slug': self.group.slug}))
         self.assertEqual(response_group_list.status_code, 200)
         test_group = response_group_list.context['group']
         self.assertEqual(test_group, self.group)
@@ -62,35 +60,34 @@ class PostsViewsTests(TestCase):
         self.posts_check_all_fields(last_post_group_list)
         self.assertEqual(str(last_post_group_list), str(self.post))
 
-
     def test_posts_context_post_create_template(self):
         response = self.authorized_client.get(reverse('posts:post_create'))
         self.assertIsInstance(response.context['form'], PostForm)
 
-
     def test_posts_context_post_edit_template(self):
-        response = self.client.get(reverse('posts:post_edit', kwargs={'post_id': self.post.id}))
+        response = self.client.get(
+            reverse('posts:post_edit', kwargs={'post_id': self.post.id}))
         form = response.context['form']
         self.assertIsInstance(form, PostForm)
         self.assertEqual(form['text'].value(), self.post.text)
 
-
     def test_posts_context_profile_template(self):
-        response = self.client.get(reverse('posts:profile', kwargs={'username': self.user.username}))
+        response = self.client.get(
+            reverse('posts:profile', kwargs={'username': self.user.username}))
         context_author = response.context['author']
         self.assertEqual(context_author, self.post.author)
 
-
     def test_posts_context_post_detail_template(self):
-        response = self.client.get(reverse('posts:post_detail', kwargs={'post_id': self.post.id}))
+        response = self.client.get(
+            reverse('posts:post_detail', kwargs={'post_id': self.post.id}))
         context_post = response.context['post']
         self.assertEqual(context_post, self.post)
 
 
 class PostsPaginatorViewsTests(TestCase):
-  
+    # Это было сделано для того, чтобы легко изменять константы
     POST_COUNT = 13
-    POSTS_PER_PAGE = 5 #  Это было сделано для того, чтобы легко изменять константы при необходимости
+    POSTS_PER_PAGE = 5
 
     @classmethod
     def setUpClass(cls):
@@ -107,14 +104,19 @@ class PostsPaginatorViewsTests(TestCase):
 
     def test_paginator_pages(self):
         paginator = Paginator(Post.objects.all(), self.POSTS_PER_PAGE)
-        last_page_posts = self.POST_COUNT % self.POSTS_PER_PAGE or self.POSTS_PER_PAGE
-        last_page_num = (self.POST_COUNT + self.POSTS_PER_PAGE - 1) // self.POSTS_PER_PAGE
+        last_page_posts = self.POST_COUNT % self.POSTS_PER_PAGE or \
+            self.POSTS_PER_PAGE
+        last_page_num = (self.POST_COUNT + self.POSTS_PER_PAGE - 1) // \
+            self.POSTS_PER_PAGE
+
         page_num = 1
         while True:
             url = reverse('posts:index') + f'?page={page_num}'
             response = self.authorized_client.get(url)
             self.assertEqual(response.status_code, 200)
-            posts_per_page = self.POSTS_PER_PAGE if page_num != last_page_num else last_page_posts
+            posts_per_page = (self.POSTS_PER_PAGE
+                              if page_num != last_page_num
+                              else last_page_posts)
             self.assertEqual(
                 len(response.context['page_obj'].object_list),
                 posts_per_page,
@@ -122,4 +124,3 @@ class PostsPaginatorViewsTests(TestCase):
             if not paginator.page(page_num).has_next():
                 break
             page_num += 1
-
