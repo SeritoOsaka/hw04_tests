@@ -1,63 +1,93 @@
-from django.contrib.auth import get_user_model
+from posts.forms import PostForm
+from posts.models import Group, Post, User
 from django.test import Client, TestCase
 from django.urls import reverse
-
-from posts.models import Group, Post
-
-User = get_user_model()
+from http import HTTPStatus
 
 
-class PostsFormsTests(TestCase):
+class PostCreateFormTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user = User.objects.create_user(username='Test User')
+        cls.guest_client = Client()
+        cls.user = User.objects.create_user(username='user')
+        cls.authorized_client = Client()
+        cls.authorized_client.force_login(cls.user)
         cls.group = Group.objects.create(
             title='Test group',
             slug='test-slug',
-            description='Test group description',
+            description='Group description'
         )
-        cls.authorized_client = Client()
-        cls.authorized_client.force_login(cls.user)
+        cls.post = Post.objects.create(
+            text='Test text',
+            author=cls.user,
+            group=cls.group
+        )
+        cls.form = PostForm()
 
-    def test_posts_forms_create_post(self):
-        post_count = Post.objects.count()
+    def test_create_post(self):
+        posts_count = Post.objects.count()
         form_data = {
-            'text': 'Test form post',
-            'group': self.group.id,
+            'text': 'test text',
+            'group': self.group.pk,
         }
         response = self.authorized_client.post(
             reverse('posts:post_create'),
             data=form_data,
+            follow=True
+        )
+        self.assertRedirects(response, reverse(
+            'posts:profile', kwargs={'username': PostCreateFormTests.user})
+        )
+        self.assertEqual(Post.objects.count(), posts_count + 1)
+        self.assertTrue(
+            Post.objects.filter(
+                group=PostCreateFormTests.group,
+                author=PostCreateFormTests.user,
+                text='test text'
+            ).exists()
+        )
+
+    def test_guest_create_post(self):
+        form_data = {
+            'text': 'Non authorized test post',
+            'group': self.group.pk,
+        }
+        self.guest_client.post(
+            reverse('posts:post_create'),
+            data=form_data,
             follow=True,
         )
-        self.assertEqual(response.status_code, 200)
-        self.assertRedirects(response, reverse('posts:index'))
-        self.assertEqual(Post.objects.count(), post_count + 1)
-        created_post = Post.objects.get(
-            text='Test form post',
-            group=self.group.id,
+        self.assertFalse(
+            Post.objects.filter(
+                text='Non authorized test post'
+            ).exists()
         )
-        self.assertEqual(created_post.text, form_data['text'])
-        self.assertEqual(created_post.author, self.user)
-        self.assertEqual(created_post.group, self.group)
 
-    def test_posts_forms_edit_post(self):
+    def test_authorized_edit_post(self):
         form_data = {
-            'text': 'New post text',
-            'group': self.group.id,
+            'text': 'test text',
+            'group': self.group.pk,
         }
-        response = self.authorized_client.post(reverse(
-            'posts:post_edit',
-            kwargs={'post_id': self.post.id},
-        ), data=form_data)
-        self.assertRedirects(
-            response,
-            reverse('posts:post_detail',
-                    kwargs={'username': self.user.username,
-                            'post_id': self.post.id})
+        self.authorized_client.post(
+            reverse('posts:post_create'),
+            data=form_data,
+            follow=True,
         )
-        edited_post = Post.objects.get(id=self.post.id)
-        self.assertEqual(edited_post.text, 'New post text')
-        self.assertEqual(edited_post.group, self.group)
-        self.assertEqual(edited_post.author, self.user)
+        post_edit = Post.objects.get(pk=self.group.pk)
+        self.client.get(f'/posts/{post_edit.pk}/edit/')
+        form_data = {
+            'text': 'Edited post',
+            'group': self.group.pk
+        }
+        response_edit = self.authorized_client.post(
+            reverse('posts:post_edit',
+                    kwargs={
+                        'post_id': post_edit.pk
+                    }),
+            data=form_data,
+            follow=True,
+        )
+        post_edit = Post.objects.get(pk=self.group.pk)
+        self.assertEqual(response_edit.status_code, HTTPStatus.OK)
+        self.assertEqual(post_edit.text, 'Edited post')

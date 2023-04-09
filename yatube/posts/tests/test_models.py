@@ -41,7 +41,7 @@ class ModelsTest(TestCase):
             ('author', 'Автор статьи'),
             ('group', 'Группа статей'),
         ]
-        for value, expected in field_verbose.items():
+        for value, expected in dict(field_verbose).items():
             with self.subTest(value=value):
                 self.assertEqual(
                     post._meta.get_field(value).verbose_name, expected
