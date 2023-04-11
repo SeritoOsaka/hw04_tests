@@ -1,5 +1,4 @@
 from django import forms
-from django.conf import settings
 
 from .models import Post
 
@@ -10,6 +9,6 @@ class PostForm(forms.ModelForm):
         fields = ('text', 'group')
         widgets = {
             'text': forms.Textarea(attrs={'class': 'form-control',
-                                                   'rows': settings.ROWS}),
+                                                   'rows': 7}),
             'group': forms.Select(attrs={'class': 'form-control'})
         }

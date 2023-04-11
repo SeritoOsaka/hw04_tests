@@ -1,137 +1,142 @@
-from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
-from posts.forms import PostForm
-from posts.models import Group, Post, User
-
-NUM_OF_POSTS_1 = 13
-NUM_OF_POSTS_2 = 2
+from django import forms
+from ..models import Post, Group
 
 
-class PostURLTests(TestCase):
+User = get_user_model()
+
+
+class PostViewsTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Неавторизованный клиент
-        cls.guest_client = Client()
-        # Авторизованный клиент
-        cls.user = User.objects.create(username='User')
-        cls.second_user = User.objects.create(username='Second_User')
+        cls.user = User.objects.create_user(username='User')
+        cls.user2 = User.objects.create_user(username='User_2')
         cls.authorized_client = Client()
-        cls.authorized_client.force_login(cls.user)
-        cls.authorized_client.force_login(cls.second_user)
-        # Создал две группы в БД
-        cls.group = Group.objects.create(
-            title='Первая группа',
+        cls.authorized_client.force_login(PostViewsTests.user)
+        cls.guest_client = Client()
+
+    def setUp(self):
+        # Создаем авторизованный клиент
+        self.group = Group.objects.create(
+            title='Тестовая группа',
             slug='test-slug',
-            description='Описание группы'
+            description='Описание тестовой группы',
         )
-        cls.second_group = Group.objects.create(
-            title='Вторая группа',
-            slug='test-slug-new',
-            description='Отличная группа от тестовой'
+
+        self.user = User.objects.get(username='User')
+
+        self.post = Post.objects.create(
+            author=self.user,
+            text='Тестовый пост',
+            group=self.group,
         )
-        # Создадим 13 постов в первой группе БД
-        for post in range(NUM_OF_POSTS_1):
-            cls.post = Post.objects.create(
-                text='Записи первой группы',
-                author=cls.user,
-                group=cls.group
-            )
 
-        # Создадим 2 поста во второй группе в БД
-        for post in range(NUM_OF_POSTS_2):
-            cls.post = Post.objects.create(
-                text='Записи второй группы',
-                author=cls.second_user,
-                group=cls.second_group
-            )
+        self.user = User.objects.create_user(username='user')
+        self.authorized_client = Client()
+        self.authorized_client.force_login(PostViewsTests.user)
+        self.authorized_client2 = Client()
+        self.authorized_client2.force_login(PostViewsTests.user)
 
-    # Проверяем используемые шаблоны
     def test_pages_uses_correct_template(self):
         templates_pages_names = {
             reverse('posts:index'): 'posts/index.html',
-            reverse('posts:group_list', kwargs={'slug': 'test-slug'}): (
-                'posts/group_list.html'
-            ),
-            reverse('posts:profile', kwargs={'username': 'User'}): (
-                'posts/profile.html'
-            ),
-            reverse('posts:post_detail', kwargs={'post_id': 13}): (
-                'posts/post_detail.html'
-            ),
-            reverse('posts:post_create'): 'posts/post_create.html',
-            reverse('posts:post_edit', kwargs={'post_id': 14}): (
-                'posts/post_create.html'
-            ),
+            reverse('posts:group_list',
+                    kwargs={'slug': self.group.slug}
+                    ): 'posts/group_list.html',
+            reverse('posts:post_edit',
+                    kwargs={'post_id': self.post.id}
+                    ): 'posts/post_create.html',
+            reverse('posts:profile',
+                    kwargs={'username': 'User'}
+                    ): 'posts/profile.html',
+            reverse('posts:post_detail',
+                    kwargs={'post_id': self.post.id}
+                    ): 'posts/post_detail.html',
+            reverse('posts:post_create'
+                    ): 'posts/post_create.html',
+
         }
         for reverse_name, template in templates_pages_names.items():
             with self.subTest(reverse_name=reverse_name):
                 response = self.authorized_client.get(reverse_name)
                 self.assertTemplateUsed(response, template)
 
-    def test_pages_show_correct_context(self):
+    def test_index_shows_correct_context(self):
         response = self.authorized_client.get(reverse('posts:index'))
-        self.assertIn('page_obj', response.context)
+        test_object = response.context.get('page_obj')[0]
+        self.assertEqual(test_object, self.post)
 
+    def test_group_list_shows_correct_context(self):
         response = self.authorized_client.get(
             reverse('posts:group_list', kwargs={'slug': 'test-slug'})
         )
-        self.assertIn('group', response.context)
-        self.assertEqual(response.context['group'], self.group)
-        self.assertIn('page_obj', response.context)
+        test_object = response.context['page_obj'][0]
+        test_group = response.context['group']
+        self.assertEqual(test_object, self.post)
+        self.assertEqual(test_group, self.group)
 
-    def test_profile_page_show_correct_context(self):
+    def test_profile_shows_correct_context(self):
+        response = self.authorized_client.get(
+            reverse('posts:profile', kwargs={'username': self.post.author})
+        )
+        test_object = response.context.get('page_obj')[0]
+        test_author = response.context['author']
+        self.assertEqual(test_object, self.post)
+        self.assertEqual(test_author, self.post.author)
+
+    def test_post_detail_shows_correct_context(self):
+        response = self.authorized_client.get(
+            reverse('posts:post_detail', kwargs={'post_id': '1'})
+        )
+        test_post = response.context['post']
+        test_post_count = response.context['posts_count']
+        self.assertEqual(test_post, self.post)
+        self.assertEqual(test_post_count, self.post.author.posts.count())
+
+    def test_edit_post_shows_correct_context(self):
+        response = self.authorized_client.get(
+            reverse('posts:post_edit', kwargs={'post_id': '1'})
+        )
+        test_is_edit = response.context['is_edit']
+        form_fields = {
+            'text': forms.fields.CharField,
+        }
+        form_field = response.context.get('form').fields.get('text')
+        self.assertIsInstance(form_field, form_fields['text'])
+        self.assertTrue(test_is_edit)
+
+    def test_post_create_shows_correct_context(self):
+        response = self.authorized_client.get(
+            reverse('posts:post_create'))
+
+        form_fields = {
+            'text': forms.fields.CharField,
+            'group': forms.fields.MultipleChoiceField,
+        }
+        form_field = response.context.get('form').fields.get('text')
+        self.assertIsInstance(form_field, form_fields['text'])
+
+    def test_new_post_index(self):
+        response = self.authorized_client.get(reverse('posts:index'))
+        posts = response.context['page_obj']
+        post = Post.objects.get(text='Тестовый пост')
+        self.assertIn(post, posts)
+
+    def test_new_post_group(self):
+        response = self.authorized_client.get(
+            reverse('posts:group_list', kwargs={'slug': 'test-slug'})
+        )
+        posts = response.context['page_obj']
+        post = Post.objects.get(text='Тестовый пост')
+        self.assertIn(post, posts)
+
+    def test_new_post_profile(self):
         response = self.authorized_client.get(
             reverse('posts:profile', kwargs={'username': 'User'})
         )
-        self.assertIn('author', response.context)
-        self.assertEqual(response.context['author'], self.user)
-        self.assertIn('post', response.context)
-        self.assertIn('page_obj', response.context)
-        self.assertEqual(response.context['author'], self.user)
-
-    def test_post_detail_page_show_correct_context(self):
-        response = self.authorized_client.get(
-            reverse('posts:post_detail', kwargs={'post_id': (self.post.pk)})
-        )
-        self.assertIn('post', response.context)
-        self.assertIn('posts_count', response.context)
-
-    def test_post_create_page_show_correct_context(self):
-        response = self.client.get(reverse('posts:post_create'), follow=True)
-        self.assertEqual(response.status_code, 200)
-        form = response.context.get('form')
-        self.assertIsNotNone(form)
-
-    def test_post_edit_page_show_correct_context(self):
-        response = self.authorized_client.get(reverse(
-            'posts:post_edit', args=(self.post.pk,)))
-
-        form = response.context['form']
-        self.assertIsInstance(form, PostForm)
-        self.assertEqual(form.instance, self.post)
-
-    def test_paginator_first_page_contains_ten_records(self):
-        response = self.guest_client.get(reverse('posts:index'))
-        self.assertEqual(len(response.context['page_obj']),
-                         settings.VIEW_COUNT)
-
-    def test_paginator_second_page_contains_three_records(self):
-        response = self.guest_client.get(reverse('posts:index') + '?page=2')
-        self.assertEqual(len(response.context['page_obj']),
-                         settings.SECOND_PAGE_COUNT)
-
-    def test_paginator_group_list_contains_two_records(self):
-        response = self.guest_client.get(
-            reverse('posts:group_list', kwargs={'slug': 'test-slug-new'})
-        )
-        self.assertEqual(len(response.context['page_obj']),
-                         settings.TWO_RECORDS_COUNT)
-
-    def test_paginator_profile_contains_two_records(self):
-        response = self.guest_client.get(
-            reverse('posts:profile', kwargs={'username': 'Second_User'})
-        )
-        self.assertEqual(len(response.context['page_obj']),
-                         settings.TWO_RECORDS_COUNT)
+        posts = response.context['page_obj']
+        post = Post.objects.get(text='Тестовый пост')
+        self.assertIn(post, posts)

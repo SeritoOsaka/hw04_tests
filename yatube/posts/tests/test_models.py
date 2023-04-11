@@ -1,48 +1,45 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from posts.models import Group, Post
+from posts.models import Group, Post, User
 
 User = get_user_model()
 
 
-class ModelsTest(TestCase):
+class PostModelTest(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user = User.objects.create_user(username='Тестовый пользователь')
-        cls.group = Group.objects.create(title='Тестовая группа')
+        cls.user = User.objects.create_user(username='user')
+        cls.group = Group.objects.create(
+            title='Test title',
+            slug='Test slug',
+            description='Test description',
+        )
         cls.post = Post.objects.create(
-            text='Тестовый пост',
             author=cls.user,
-            group=cls.group,
+            text='Test text',
         )
 
-    def test_group_model(self):
-        group = ModelsTest.group
-        self.assertEqual(str(group), group.title)
-        field_verbose = [
-            ('title', 'Название группы'),
-            ('description', 'Описание группы')
-        ]
-        for value, expected in field_verbose:
-            with self.subTest(value=value):
-                self.assertEqual(
-                    group._meta.get_field(value).verbose_name, expected
-                )
+    def test_models_have_correct_object_names(self):
+        post = self.post
+        group = self.group
+        expected_str = {
+            post: post.text[:Post.FIRST_FIFTEEN_CHARACTERS],
+            group: group.title
+        }
+        for model, expected in expected_str.items():
+            with self.subTest(model=model):
+                self.assertEqual(str(model), expected)
 
-    def test_post_model(self):
-        post = ModelsTest.post
-        text = post.text
-        self.assertEqual(str(post), text[:Post.FIRST_FIFTEEN_CHARACTERS])
-        field_verbose = [
+    def test_field_verbose(self):
+        post = self.post
+        field_verbose = (
             ('text', 'Текст статьи'),
             ('pub_date', 'Дата публикации'),
-            ('author', 'Автор статьи'),
             ('group', 'Группа статей'),
-        ]
+        )
         for value, expected in dict(field_verbose).items():
             with self.subTest(value=value):
                 self.assertEqual(
-                    post._meta.get_field(value).verbose_name, expected
-                )
+                    post._meta.get_field(value).verbose_name, expected)

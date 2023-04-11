@@ -1,14 +1,14 @@
-from posts.forms import PostForm
 from posts.models import Group, Post, User
 from django.test import Client, TestCase
 from django.urls import reverse
-from http import HTTPStatus
 
 
 class PostCreateFormTests(TestCase):
+    """использовал метод setUp() вместо setUpClass(),
+    так как setUpClass() вызывается только один раз для всего класса тестов,
+    а не для каждого теста."""
     @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
+    def setUp(cls):
         cls.guest_client = Client()
         cls.user = User.objects.create_user(username='user')
         cls.authorized_client = Client()
@@ -23,12 +23,11 @@ class PostCreateFormTests(TestCase):
             author=cls.user,
             group=cls.group
         )
-        cls.form = PostForm()
 
     def test_create_post(self):
         posts_count = Post.objects.count()
         form_data = {
-            'text': 'test text',
+            'text': 'Test text',
             'group': self.group.pk,
         }
         response = self.authorized_client.post(
@@ -40,13 +39,17 @@ class PostCreateFormTests(TestCase):
             'posts:profile', kwargs={'username': PostCreateFormTests.user})
         )
         self.assertEqual(Post.objects.count(), posts_count + 1)
-        self.assertTrue(
-            Post.objects.filter(
-                group=PostCreateFormTests.group,
-                author=PostCreateFormTests.user,
-                text='test text'
-            ).exists()
+        posts = Post.objects.filter(
+            group=PostCreateFormTests.group,
+            author=PostCreateFormTests.user,
+            text='Test text'
         )
+        self.assertEqual(posts.count(), 2)
+
+        for post in posts:
+            self.assertEqual(post.text, 'Test text')
+            self.assertEqual(post.author, PostCreateFormTests.user)
+            self.assertEqual(post.group, PostCreateFormTests.group)
 
     def test_guest_create_post(self):
         form_data = {
@@ -65,29 +68,30 @@ class PostCreateFormTests(TestCase):
         )
 
     def test_authorized_edit_post(self):
-        form_data = {
-            'text': 'test text',
-            'group': self.group.pk,
-        }
-        self.authorized_client.post(
-            reverse('posts:post_create'),
-            data=form_data,
-            follow=True,
-        )
-        post_edit = Post.objects.get(pk=self.group.pk)
-        self.client.get(f'/posts/{post_edit.pk}/edit/')
+        post_text = Post.objects.filter(pk=self.post.pk)
         form_data = {
             'text': 'Edited post',
-            'group': self.group.pk
+            'group': self.group.pk,
         }
-        response_edit = self.authorized_client.post(
-            reverse('posts:post_edit',
-                    kwargs={
-                        'post_id': post_edit.pk
-                    }),
+        response = self.authorized_client.post(
+            reverse(
+                'posts:post_edit', kwargs={'post_id': self.post.pk}
+            ),
             data=form_data,
-            follow=True,
+            follow=True
         )
-        post_edit = Post.objects.get(pk=self.group.pk)
-        self.assertEqual(response_edit.status_code, HTTPStatus.OK)
-        self.assertEqual(post_edit.text, 'Edited post')
+        self.assertRedirects(response, reverse(
+            'posts:post_detail',
+            kwargs={'post_id': self.post.pk})
+        )
+        self.assertNotEqual(
+            post_text,
+            Post.objects.filter(pk=self.post.pk)
+        )
+        self.assertTrue(
+            Post.objects.filter(
+                text='Edited post',
+                author=self.user,
+                group=self.group.pk
+            ).exists()
+        )
