@@ -6,13 +6,13 @@ from ..models import Post, Group
 User = get_user_model()
 
 INDEX = reverse('posts:index')
-PROFILE = reverse('posts:profile', kwargs={'username': 'HasNoName'})
+PROFILE = reverse('posts:profile', kwargs={'username': 'User'})
 
 
 class PaginatorViewsTest(TestCase):
 
     def setUp(self):
-        self.user = User.objects.create_user(username='HasNoName')
+        self.user = User.objects.create_user(username='User')
         self.group = Group.objects.create(
             title='Тестовая группа',
             slug='test-slug',

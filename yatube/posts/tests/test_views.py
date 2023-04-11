@@ -19,7 +19,6 @@ class PostViewsTests(TestCase):
         cls.guest_client = Client()
 
     def setUp(self):
-        # Создаем авторизованный клиент
         self.group = Group.objects.create(
             title='Тестовая группа',
             slug='test-slug',
