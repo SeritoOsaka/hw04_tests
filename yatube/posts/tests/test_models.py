@@ -22,13 +22,12 @@ class PostModelTest(TestCase):
         )
 
     def test_models_have_correct_object_names(self):
-        post = self.post
-        group = self.group
-        expected_str = {
-            post: post.text[:Post.FIRST_FIFTEEN_CHARACTERS],
-            group: group.title
-        }
-        for model, expected in expected_str.items():
+        expected_str = [
+            (self.post, self.post.text[:Post.FIRST_FIFTEEN_CHARACTERS]),
+            (self.group, self.group.title)
+        ]
+
+        for model, expected in expected_str:
             with self.subTest(model=model):
                 self.assertEqual(str(model), expected)
 

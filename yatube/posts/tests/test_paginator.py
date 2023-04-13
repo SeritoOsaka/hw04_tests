@@ -1,3 +1,5 @@
+from django.core.paginator import Paginator
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -10,56 +12,64 @@ PROFILE = reverse('posts:profile', kwargs={'username': 'User'})
 
 
 class PaginatorViewsTest(TestCase):
+    NUM_POSTS_TO_CREATE = 13
 
-    def setUp(self):
-        self.user = User.objects.create_user(username='User')
-        self.group = Group.objects.create(
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.num_pages = Paginator(Post.objects.all(),
+                                  settings.VIEW_COUNT).num_pages
+        cls.user = User.objects.create_user(username='User')
+        cls.group = Group.objects.create(
             title='Тестовая группа',
             slug='test-slug',
             description='Описание тестовой группы',
         )
+
+    def setUp(self):
+        self.num_posts = Post.objects.count()
         self.authorized_client = Client()
-        for i in range(13):
-            Post.objects.create(
-                author=self.user,
-                group=self.group,
-            )
+        posts_to_create = [Post(author=self.user, group=self.group)
+                           for _ in range(self.NUM_POSTS_TO_CREATE)]
+        Post.objects.bulk_create(posts_to_create)
+        self.num_pages = Paginator(Post.objects.all(),
+                                   settings.VIEW_COUNT).num_pages
 
     def test_first_page_contains_ten_records(self):
-        # Проверка: количество постов на первой странице равно 10.
         response = self.authorized_client.get(INDEX)
-        self.assertEqual(len(response.context['page_obj']), 10)
+        self.assertEqual(len(response.context['page_obj']),
+                         settings.VIEW_COUNT)
+
+        response = self.authorized_client.get(
+            reverse('posts:group_list', kwargs={'slug': self.group.slug})
+        )
+        self.assertEqual(
+            len(response.context['page_obj']), settings.VIEW_COUNT)
+
+        response = self.authorized_client.get(PROFILE)
+        self.assertEqual(
+            len(response.context['page_obj']), settings.VIEW_COUNT)
 
     def test_second_page_contains_three_records(self):
-        # Проверка: на второй странице должно быть три поста.
         response = self.authorized_client.get(INDEX + '?page=2')
         self.assertEqual(len(response.context['page_obj']), 3)
+        self.assertEqual(
+            response.context['page_obj'].number, 2)
+        self.assertEqual(
+            response.context['page_obj'].paginator.num_pages, self.num_pages)
 
-    def test_first_page_TestGroup_contains_ten_records(self):
-        # Проверка: количество постов на первой странице равно 10.
-        response = self.authorized_client.get(reverse
-                                              ('posts:group_list',
-                                               kwargs={
-                                                   'slug': self.group.slug}
-                                               )
-                                              )
-        self.assertEqual(len(response.context['page_obj']), 10)
-
-    def test_second_page_TestGroup_contains_three_records(self):
-        # Проверка: количество постов на второй странице равно 3.
-        response = self.authorized_client.get(reverse
-                                              ('posts:group_list',
-                                               kwargs={
-                                                   'slug': self.group.slug}
-                                               ) + '?page=2')
+        response = self.authorized_client.get(
+            reverse('posts:group_list',
+                    kwargs={'slug': self.group.slug}) + '?page=2')
         self.assertEqual(len(response.context['page_obj']), 3)
+        self.assertEqual(
+            response.context['page_obj'].number, 2)
+        self.assertEqual(
+            response.context['page_obj'].paginator.num_pages, self.num_pages)
 
-    def test_first_page_profile_CanEdit_contains_ten_records(self):
-        response = self.authorized_client.get(PROFILE)
-        # Проверка: количество постов на первой странице равно 10.
-        self.assertEqual(len(response.context['page_obj']), 10)
-
-    def test_second_page_profile_CanEdit_contains_three_records(self):
-        # Проверка: количество постов на второй странице равно 3.
         response = self.authorized_client.get(PROFILE + '?page=2')
         self.assertEqual(len(response.context['page_obj']), 3)
+        self.assertEqual(
+            response.context['page_obj'].number, 2)
+        self.assertEqual(
+            response.context['page_obj'].paginator.num_pages, self.num_pages)

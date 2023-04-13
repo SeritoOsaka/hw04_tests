@@ -8,11 +8,9 @@ class PostCreateFormTests(TestCase):
     так как setUpClass() вызывается только один раз для всего класса тестов,
     а не для каждого теста."""
     @classmethod
-    def setUp(cls):
-        cls.guest_client = Client()
+    def setUpClass(cls):
+        super().setUpClass()
         cls.user = User.objects.create_user(username='user')
-        cls.authorized_client = Client()
-        cls.authorized_client.force_login(cls.user)
         cls.group = Group.objects.create(
             title='Test group',
             slug='test-slug',
@@ -24,10 +22,15 @@ class PostCreateFormTests(TestCase):
             group=cls.group
         )
 
+    def setUp(cls):
+        cls.guest_client = Client()
+        cls.authorized_client = Client()
+        cls.authorized_client.force_login(cls.user)
+
     def test_create_post(self):
         posts_count = Post.objects.count()
         form_data = {
-            'text': 'Test text',
+            'text': 'test text',
             'group': self.group.pk,
         }
         response = self.authorized_client.post(
@@ -39,17 +42,15 @@ class PostCreateFormTests(TestCase):
             'posts:profile', kwargs={'username': PostCreateFormTests.user})
         )
         self.assertEqual(Post.objects.count(), posts_count + 1)
-        posts = Post.objects.filter(
+        post = Post.objects.filter(
             group=PostCreateFormTests.group,
             author=PostCreateFormTests.user,
-            text='Test text'
-        )
-        self.assertEqual(posts.count(), 2)
-
-        for post in posts:
-            self.assertEqual(post.text, 'Test text')
-            self.assertEqual(post.author, PostCreateFormTests.user)
-            self.assertEqual(post.group, PostCreateFormTests.group)
+            text='test text'
+        ).first()
+        self.assertTrue(post is not None)
+        self.assertEqual(post.group, PostCreateFormTests.group)
+        self.assertEqual(post.author, PostCreateFormTests.user)
+        self.assertEqual(post.text, 'test text')
 
     def test_guest_create_post(self):
         form_data = {
@@ -68,7 +69,6 @@ class PostCreateFormTests(TestCase):
         )
 
     def test_authorized_edit_post(self):
-        post_text = Post.objects.filter(pk=self.post.pk)
         form_data = {
             'text': 'Edited post',
             'group': self.group.pk,
@@ -84,14 +84,12 @@ class PostCreateFormTests(TestCase):
             'posts:post_detail',
             kwargs={'post_id': self.post.pk})
         )
-        self.assertNotEqual(
-            post_text,
-            Post.objects.filter(pk=self.post.pk)
-        )
-        self.assertTrue(
-            Post.objects.filter(
-                text='Edited post',
-                author=self.user,
-                group=self.group.pk
-            ).exists()
-        )
+        edit_post = Post.objects.filter(
+            text='Edited post',
+            author=self.user,
+            group=self.group.pk
+        ).first()
+        self.assertTrue(edit_post is not None)
+        self.assertEqual(edit_post.group, self.group, 1)
+        self.assertEqual(edit_post.author, self.user)
+        self.assertEqual(edit_post.text, 'Edited post')
