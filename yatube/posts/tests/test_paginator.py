@@ -1,4 +1,5 @@
-from django.core.paginator import Paginator
+import math
+from django.db import transaction
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
@@ -12,51 +13,51 @@ PROFILE = reverse('posts:profile', kwargs={'username': 'User'})
 
 
 class PaginatorViewsTest(TestCase):
-    NUM_POSTS_TO_CREATE = 13
 
     @classmethod
+    @transaction.atomic
     def setUpClass(cls):
         super().setUpClass()
-        cls.num_pages = Paginator(Post.objects.all(),
-                                  settings.VIEW_COUNT).num_pages
         cls.user = User.objects.create_user(username='User')
         cls.group = Group.objects.create(
             title='Тестовая группа',
             slug='test-slug',
             description='Описание тестовой группы',
         )
+        cls.NUM_POSTS_TO_CREATE = 13
+        posts_to_create = []
+        for _ in range(cls.NUM_POSTS_TO_CREATE):
+            posts_to_create.append(Post(author=cls.user, group=cls.group))
+        Post.objects.bulk_create(posts_to_create)
 
     def setUp(self):
-        self.num_posts = Post.objects.count()
         self.authorized_client = Client()
-        posts_to_create = [Post(author=self.user, group=self.group)
-                           for _ in range(self.NUM_POSTS_TO_CREATE)]
-        Post.objects.bulk_create(posts_to_create)
-        self.num_pages = Paginator(Post.objects.all(),
-                                   settings.VIEW_COUNT).num_pages
+        self.num_pages = math.ceil(
+            self.NUM_POSTS_TO_CREATE / settings.VIEW_COUNT)
 
     def test_first_page_contains_ten_records(self):
-        response = self.authorized_client.get(INDEX)
-        self.assertEqual(len(response.context['page_obj']),
-                         settings.VIEW_COUNT)
+        urls = [INDEX,
+                reverse('posts:group_list', kwargs={'slug': self.group.slug}),
+                PROFILE]
 
-        response = self.authorized_client.get(
-            reverse('posts:group_list', kwargs={'slug': self.group.slug})
-        )
-        self.assertEqual(
-            len(response.context['page_obj']), settings.VIEW_COUNT)
-
-        response = self.authorized_client.get(PROFILE)
-        self.assertEqual(
-            len(response.context['page_obj']), settings.VIEW_COUNT)
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.authorized_client.get(url)
+                self.assertEqual(
+                    len(response.context['page_obj']), settings.VIEW_COUNT)
 
     def test_second_page_contains_three_records(self):
         response = self.authorized_client.get(INDEX + '?page=2')
-        self.assertEqual(len(response.context['page_obj']), 3)
+        num_posts_on_page = len(response.context['page_obj'])
+        num_pages = response.context['page_obj'].paginator.num_pages
         self.assertEqual(
-            response.context['page_obj'].number, 2)
-        self.assertEqual(
-            response.context['page_obj'].paginator.num_pages, self.num_pages)
+            num_posts_on_page,
+            min(settings.VIEW_COUNT,
+                self.NUM_POSTS_TO_CREATE - settings.VIEW_COUNT)
+        )
+        self.assertEqual(response.context['page_obj'].number, 2)
+        self.assertEqual(num_pages, math.ceil(
+            self.NUM_POSTS_TO_CREATE / settings.VIEW_COUNT))
 
         response = self.authorized_client.get(
             reverse('posts:group_list',

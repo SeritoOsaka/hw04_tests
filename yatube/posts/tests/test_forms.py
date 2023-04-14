@@ -4,9 +4,6 @@ from django.urls import reverse
 
 
 class PostCreateFormTests(TestCase):
-    """использовал метод setUp() вместо setUpClass(),
-    так как setUpClass() вызывается только один раз для всего класса тестов,
-    а не для каждого теста."""
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -28,9 +25,9 @@ class PostCreateFormTests(TestCase):
         cls.authorized_client.force_login(cls.user)
 
     def test_create_post(self):
-        posts_count = Post.objects.count()
+        initial_posts_count = Post.objects.count()
         form_data = {
-            'text': 'test text',
+            'text': 'Test text',
             'group': self.group.pk,
         }
         response = self.authorized_client.post(
@@ -41,16 +38,15 @@ class PostCreateFormTests(TestCase):
         self.assertRedirects(response, reverse(
             'posts:profile', kwargs={'username': PostCreateFormTests.user})
         )
-        self.assertEqual(Post.objects.count(), posts_count + 1)
-        post = Post.objects.filter(
-            group=PostCreateFormTests.group,
-            author=PostCreateFormTests.user,
-            text='test text'
-        ).first()
-        self.assertTrue(post is not None)
+        final_posts = (Post.objects
+                       .all()
+                       .order_by('-pub_date')
+                       [initial_posts_count:])
+        self.assertEqual(len(final_posts), 1)
+        post = final_posts[0]
         self.assertEqual(post.group, PostCreateFormTests.group)
         self.assertEqual(post.author, PostCreateFormTests.user)
-        self.assertEqual(post.text, 'test text')
+        self.assertEqual(post.text, form_data['text'])
 
     def test_guest_create_post(self):
         form_data = {
@@ -64,7 +60,7 @@ class PostCreateFormTests(TestCase):
         )
         self.assertFalse(
             Post.objects.filter(
-                text='Non authorized test post'
+                text=form_data['text']
             ).exists()
         )
 
@@ -85,11 +81,12 @@ class PostCreateFormTests(TestCase):
             kwargs={'post_id': self.post.pk})
         )
         edit_post = Post.objects.filter(
+            pk=self.post.pk,  # выбираем пост по его id
             text='Edited post',
             author=self.user,
             group=self.group.pk
         ).first()
         self.assertTrue(edit_post is not None)
-        self.assertEqual(edit_post.group, self.group, 1)
+        self.assertEqual(edit_post.group, self.group)
         self.assertEqual(edit_post.author, self.user)
-        self.assertEqual(edit_post.text, 'Edited post')
+        self.assertEqual(edit_post.text, form_data['text'])
