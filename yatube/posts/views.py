@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
+from django.http import HttpResponseForbidden
 
 from posts.forms import PostForm
 from posts.models import Group, Post
@@ -73,12 +74,17 @@ def post_create(request):
 @login_required
 def post_edit(request, post_id):
     post = get_object_or_404(Post, pk=post_id)
+
+    if request.user != post.author:
+        return HttpResponseForbidden()
+
     form = PostForm(request.POST or None, instance=post)
     if form.is_valid():
-        post = form.save()
-        form.instance.author = request.user
+        post = form.save(commit=False)
+        post.author = request.user
         post.save()
         return redirect('posts:post_detail', post_id)
+
     context = {
         'form': form,
         'is_edit': True,

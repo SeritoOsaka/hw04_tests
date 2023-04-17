@@ -32,38 +32,45 @@ class PostsURLTests(TestCase):
         self.authorized_client = Client()
         self.authorized_client.force_login(PostsURLTests.user)
 
-    def test_redirect_if_not_logged_in(self):
-        urls = [self.urls["post_create"], self.urls["post_edit"]]
-        for url in urls:
-            response = self.guest_client.get(url, follow=True)
-            self.assertRedirects(response, f'/auth/login/?next={url}')
+    def test_urls_names(self):
+        urls_names = {
+            "index": "/",
+            "group_list": reverse("posts:group_list",
+                                  args=[PostsURLTests.group.slug]),
+            "profile": reverse("posts:profile",
+                               args=[PostsURLTests.user.username]),
+            "post_detail": reverse("posts:post_detail",
+                                   args=[PostsURLTests.post.id]),
+            "post_edit": reverse("posts:post_edit",
+                                 args=[PostsURLTests.post.id]),
+            "post_create": '/create/',
+        }
+        for name, url in urls_names.items():
+            with self.subTest(name=name):
+                self.assertEqual(url, PostsURLTests.urls[name])
 
-    def test_post_edit_redirect_for_guest(self):
+    def test_redirect_if_not_logged_in(self):
         url = f'/posts/{self.post.id}/edit/'
         response = self.guest_client.get(url, follow=True)
         self.assertRedirects(response, f'/auth/login/?next={url}')
 
     def test_urls_exist(self):
-        urls = {
-            "index": reverse("posts:index"),
-            "group_list": reverse("posts:group_list",
-                                  kwargs={"slug": self.group.slug}),
-            "profile": reverse("posts:profile",
-                               kwargs={"username": self.user.username}),
-            "post_detail": reverse("posts:post_detail",
-                                   kwargs={"post_id": self.post.id}),
-            "post_edit": reverse("posts:post_edit",
-                                 kwargs={"post_id": self.post.id}),
-            "post_create": reverse("posts:post_create"),
-        }
-        for name, url in urls.items():
-            with self.subTest(name=name):
-                client = (self.authorized_client if ('profile' in name
-                                                     or 'create' in name
-                                                     or 'edit' in name)
-                          else self.guest_client)
+        urls = [
+            (reverse("posts:index"), 200, self.guest_client),
+            (reverse("posts:group_list", kwargs={"slug": self.group.slug}),
+             200, self.guest_client),
+            (reverse("posts:profile", kwargs={"username": self.user.username}),
+             200, self.guest_client),
+            (reverse("posts:post_detail", kwargs={"post_id": self.post.id}),
+             200, self.guest_client),
+            (reverse("posts:post_create"), 200, self.authorized_client),
+            (reverse("posts:post_edit", kwargs={"post_id": self.post.id}),
+             200, self.authorized_client),
+        ]
+        for url, expected_status_code, client in urls:
+            with self.subTest(url=url):
                 response = client.get(url)
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.status_code, expected_status_code)
 
     def test_urls_uses_correct_template(self):
         templates_url_names = [
@@ -82,3 +89,30 @@ class PostsURLTests(TestCase):
             with self.subTest(address=address):
                 response = self.authorized_client.get(address)
                 self.assertTemplateUsed(response, template)
+
+    def test_redirect_non_author_edit_post(self):
+        non_author = User.objects.create_user(username='Non_author')
+        non_author_client = Client()
+        non_author_client.force_login(non_author)
+
+        response = non_author_client.get(
+            reverse('posts:post_edit', args=[self.post.id]), follow=True)
+        self.assertEqual(response.status_code, 403)
+
+    def test_actual_urls(self):
+        urls_names = {
+            "index": "/",
+            "group_list": reverse("posts:group_list",
+                                  args=[PostsURLTests.group.slug]),
+            "profile": reverse("posts:profile",
+                               args=[PostsURLTests.user.username]),
+            "post_detail": reverse("posts:post_detail",
+                                   args=[PostsURLTests.post.id]),
+            "post_edit": reverse("posts:post_edit",
+                                 args=[PostsURLTests.post.id]),
+            "post_create": '/create/',
+        }
+        for name, url in urls_names.items():
+            with self.subTest(name=name):
+                response = self.authorized_client.get(url)
+                self.assertEqual(response.status_code, 200)

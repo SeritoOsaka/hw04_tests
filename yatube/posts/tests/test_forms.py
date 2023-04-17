@@ -25,6 +25,9 @@ class PostCreateFormTests(TestCase):
         cls.authorized_client.force_login(cls.user)
 
     def test_create_post(self):
+        # удаляем все посты из базы данных
+        Post.objects.all().delete()
+
         initial_posts_count = Post.objects.count()
         form_data = {
             'text': 'Test text',
@@ -40,11 +43,11 @@ class PostCreateFormTests(TestCase):
         )
         final_posts = (Post.objects
                        .all()
-                       .order_by('-pub_date')
+                           .order_by('-pub_date')
                        [initial_posts_count:])
         self.assertEqual(len(final_posts), 1)
         post = final_posts[0]
-        self.assertEqual(post.group, PostCreateFormTests.group)
+        self.assertEqual(post.group.id, form_data['group'])
         self.assertEqual(post.author, PostCreateFormTests.user)
         self.assertEqual(post.text, form_data['text'])
 
@@ -80,13 +83,7 @@ class PostCreateFormTests(TestCase):
             'posts:post_detail',
             kwargs={'post_id': self.post.pk})
         )
-        edit_post = Post.objects.filter(
-            pk=self.post.pk,  # выбираем пост по его id
-            text='Edited post',
-            author=self.user,
-            group=self.group.pk
-        ).first()
-        self.assertTrue(edit_post is not None)
+        edit_post = Post.objects.get(pk=self.post.pk)
         self.assertEqual(edit_post.group, self.group)
         self.assertEqual(edit_post.author, self.user)
         self.assertEqual(edit_post.text, form_data['text'])
