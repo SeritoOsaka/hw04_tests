@@ -51,10 +51,15 @@ class PaginatorViewsTest(TestCase):
             with self.subTest(url=url):
                 response = self.authorized_client.get(url)
                 for _ in range(2, self.num_pages + 1):
-                    response = self.authorized_client.get(url + '?page=' + str(_))
+                    response = (self.authorized_client.get
+                                (url + '?page=' + str(_)))
                     num_posts_on_page = len(response.context['page_obj'])
                     if _ < self.num_pages:
-                        self.assertEqual(num_posts_on_page, settings.VIEW_COUNT)
+                        self.assertEqual
+                        (num_posts_on_page, settings.VIEW_COUNT)
                     else:
-                        last_page_post = self.NUM_POSTS_TO_CREATE - settings.VIEW_COUNT * (self.num_pages - 1)
+                        last_page_post = (
+                            self.NUM_POSTS_TO_CREATE
+                            - settings.VIEW_COUNT * (self.num_pages - 1)
+                        )
                         self.assertEqual(num_posts_on_page, last_page_post)

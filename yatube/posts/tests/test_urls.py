@@ -30,21 +30,24 @@ class PostsURLTests(TestCase):
     def setUp(self):
         self.guest_client = Client()
         self.authorized_client = Client()
-        self.authorized_client.force_login(PostsURLTests.user)  
+        self.authorized_client.force_login(PostsURLTests.user)
 
     def test_urls_names(self):
         urls_names = [
             ("index", "/"),
-            ("group_list", reverse("posts:group_list", args=[PostsURLTests.group.slug])),
-            ("profile", reverse("posts:profile", args=[PostsURLTests.user.username])),
-            ("post_detail", reverse("posts:post_detail", args=[PostsURLTests.post.id])),
-            ("post_edit", reverse("posts:post_edit", args=[PostsURLTests.post.id])),
+            ("group_list", reverse("posts:group_list",
+                                   args=[PostsURLTests.group.slug])),
+            ("profile", reverse("posts:profile",
+                                args=[PostsURLTests.user.username])),
+            ("post_detail", reverse("posts:post_detail",
+                                    args=[PostsURLTests.post.id])),
+            ("post_edit", reverse("posts:post_edit",
+                                  args=[PostsURLTests.post.id])),
             ("post_create", "/create/"),
         ]
         for name, url in urls_names:
             with self.subTest(name=name):
                 self.assertEqual(url, PostsURLTests.urls[name])
-
 
     def test_redirect_if_not_logged_in(self):
         url = reverse('posts:post_edit', args=[self.post.id])
@@ -73,11 +76,16 @@ class PostsURLTests(TestCase):
     def test_urls(self):
         urls = [
             ("posts:index", {}, 200, self.guest_client),
-            ("posts:group_list", {"slug": self.group.slug}, 200, self.guest_client),
-            ("posts:profile", {"username": self.user.username}, 200, self.guest_client),
-            ("posts:post_detail", {"post_id": self.post.id}, 200, self.guest_client),
-            ("posts:post_create", {}, 302, self.guest_client),
-            ("posts:post_edit", {"post_id": self.post.id}, 302, self.guest_client),
+            ("posts:group_list",
+             {"slug": self.group.slug}, 200, self.guest_client),
+            ("posts:profile",
+             {"username": self.user.username}, 200, self.guest_client),
+            ("posts:post_detail",
+             {"post_id": self.post.id}, 200, self.guest_client),
+            ("posts:post_create",
+             {}, 302, self.guest_client),
+            ("posts:post_edit",
+             {"post_id": self.post.id}, 302, self.guest_client),
         ]
         for url_name, url_kwargs, expected_status_code, client in urls:
             with self.subTest(url_name=url_name, url_kwargs=url_kwargs):
@@ -104,4 +112,3 @@ class PostsURLTests(TestCase):
         url = f'/posts/{self.post.id}/edit/'
         response = self.guest_client.get(url, follow=True)
         self.assertRedirects(response, f'/auth/login/?next={url}')
-        
