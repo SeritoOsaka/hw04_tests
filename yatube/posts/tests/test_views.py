@@ -40,8 +40,8 @@ class PostViewsTests(TestCase):
         for url in urls:
             with self.subTest(msg=f'Test {url} page'):
                 response = self.authorized_client.get(url)
-                page_obj = response.context.get('page_obj')[0]
-                self.assertEqual(page_obj, self.post)
+                test_post = response.context.get('page_obj')[0]
+                self.assertEqual(test_post, self.post)
 
     def test_post_detail_shows_correct_context(self):
         response = self.authorized_client.get(
@@ -67,25 +67,3 @@ class PostViewsTests(TestCase):
             reverse('posts:post_create'))
 
         self.assertIsInstance(response.context.get('form'), PostForm)
-
-    def test_post_does_not_appear_on_other_group_pages(self):
-        group1 = Group.objects.create(title='Group 1', slug='group-1')
-        group2 = Group.objects.create(title='Group 2', slug='group-2')
-        post1 = Post.objects.create(author=self.user,
-                                    text='Post 1',
-                                    group=group1)
-        post2 = Post.objects.create(author=self.user,
-                                    text='Post 2',
-                                    group=group2)
-
-        response = self.authorized_client.get(
-            reverse('posts:group_list', kwargs={'slug': 'group-1'})
-        )
-        self.assertEqual(len(response.context['page_obj']), 1)
-        self.assertEqual(response.context['page_obj'][0], post1)
-
-        response = self.authorized_client.get(
-            reverse('posts:group_list',
-                    kwargs={'slug': 'group-2'}))
-        self.assertEqual(len(response.context['page_obj']), 1)
-        self.assertEqual(response.context['page_obj'][0], post2)

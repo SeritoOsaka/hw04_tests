@@ -28,7 +28,6 @@ class PostCreateFormTests(TestCase):
         # удаляем все посты из базы данных
         Post.objects.all().delete()
 
-        initial_posts_count = Post.objects.count()
         form_data = {
             'text': 'Test text',
             'group': self.group.pk,
@@ -43,10 +42,9 @@ class PostCreateFormTests(TestCase):
         )
         final_posts = (Post.objects
                        .all()
-                           .order_by('-pub_date')
-                       [initial_posts_count:])
+                           .order_by('-pub_date'))
+        post = final_posts.last()
         self.assertEqual(len(final_posts), 1)
-        post = final_posts[0]
         self.assertEqual(post.group.id, form_data['group'])
         self.assertEqual(post.author, PostCreateFormTests.user)
         self.assertEqual(post.text, form_data['text'])
@@ -84,6 +82,6 @@ class PostCreateFormTests(TestCase):
             kwargs={'post_id': self.post.pk})
         )
         edit_post = Post.objects.get(pk=self.post.pk)
-        self.assertEqual(edit_post.group, self.group)
-        self.assertEqual(edit_post.author, self.user)
+        self.assertEqual(edit_post.group.id, form_data['group'])
+        self.assertEqual(edit_post.author, self.post.author)
         self.assertEqual(edit_post.text, form_data['text'])

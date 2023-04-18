@@ -75,9 +75,6 @@ def post_create(request):
 def post_edit(request, post_id):
     post = get_object_or_404(Post, pk=post_id)
 
-    if request.user != post.author:
-        return HttpResponseForbidden()
-
     form = PostForm(request.POST or None, instance=post)
     if form.is_valid():
         post = form.save(commit=False)
