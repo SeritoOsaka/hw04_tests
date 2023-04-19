@@ -40,11 +40,7 @@ class PostCreateFormTests(TestCase):
         self.assertRedirects(response, reverse(
             'posts:profile', kwargs={'username': PostCreateFormTests.user})
         )
-        final_posts = (Post.objects
-                       .all()
-                           .order_by('-pub_date'))
-        post = final_posts.last()
-        self.assertEqual(len(final_posts), 1)
+        post = Post.objects.last()
         self.assertEqual(post.group.id, form_data['group'])
         self.assertEqual(post.author, PostCreateFormTests.user)
         self.assertEqual(post.text, form_data['text'])

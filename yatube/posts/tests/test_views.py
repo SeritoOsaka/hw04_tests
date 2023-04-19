@@ -1,8 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
-from posts.forms import PostForm
 
+from posts.forms import PostForm
 from ..models import Group, Post
 
 User = get_user_model()
@@ -19,6 +19,11 @@ class PostViewsTests(TestCase):
             slug='test-slug',
             description='Описание тестовой группы',
         )
+        cls.another_group = Group.objects.create(
+            title='Группа 2',
+            slug='new_group_slug',
+            description='Описание группы 2'
+        )
         cls.post = Post.objects.create(
             author=cls.user,
             text='Тестовый пост',
@@ -29,6 +34,12 @@ class PostViewsTests(TestCase):
         self.authorized_client = Client()
         self.authorized_client.force_login(PostViewsTests.user)
         self.guest_client = Client()
+
+    def test_post_not_in_another_group(self):
+        url = reverse('posts:group_list',
+                      kwargs={'slug': self.another_group.slug})
+        response = self.guest_client.get(url)
+        self.assertNotIn(self.post.text, response.content.decode())
 
     def test_post_context(self):
         urls = [
@@ -67,3 +78,14 @@ class PostViewsTests(TestCase):
             reverse('posts:post_create'))
 
         self.assertIsInstance(response.context.get('form'), PostForm)
+
+    def test_posts_displayed_on_group_and_author_pages(self):
+        urls = [
+            reverse('posts:group_list', kwargs={'slug': self.group.slug}),
+            reverse('posts:profile', kwargs={'username': self.user.username}),
+        ]
+        for url in urls:
+            with self.subTest(msg=f'Test {url} page'):
+                response = self.authorized_client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, self.post.text)

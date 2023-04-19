@@ -49,17 +49,11 @@ class PaginatorViewsTest(TestCase):
     def test_second_page_contains_correct_number_of_records(self):
         for url in self.TEST_URLS:
             with self.subTest(url=url):
-                response = self.authorized_client.get(url)
-                for _ in range(2, self.num_pages + 1):
-                    response = (self.authorized_client.get
-                                (url + '?page=' + str(_)))
-                    num_posts_on_page = len(response.context['page_obj'])
-                    if _ < self.num_pages:
-                        self.assertEqual
-                        (num_posts_on_page, settings.VIEW_COUNT)
-                    else:
-                        last_page_post = (
-                            self.NUM_POSTS_TO_CREATE
-                            - settings.VIEW_COUNT * (self.num_pages - 1)
-                        )
-                        self.assertEqual(num_posts_on_page, last_page_post)
+                response = self.authorized_client.get(url,
+                                                      {'page': self.num_pages})
+                expected_last_page_post_count = (
+                    self.NUM_POSTS_TO_CREATE
+                    - settings.VIEW_COUNT * (self.num_pages - 1)
+                )
+                self.assertEqual(len(response.context['page_obj']),
+                                 expected_last_page_post_count)

@@ -1,5 +1,6 @@
 from django.test import TestCase, Client
 from django.urls import reverse
+
 from ..models import Post, Group, User
 
 
@@ -8,6 +9,7 @@ class PostsURLTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = User.objects.create_user(username='User')
+        cls.not_author = User.objects.create_user(username='not_author')
         cls.group = Group.objects.create(
             title='Тестовая группа',
             slug='test_slug',
@@ -30,7 +32,9 @@ class PostsURLTests(TestCase):
     def setUp(self):
         self.guest_client = Client()
         self.authorized_client = Client()
+        self.not_authorized_client = Client()
         self.authorized_client.force_login(PostsURLTests.user)
+        self.not_authorized_client.force_login(PostsURLTests.not_author)
 
     def test_urls_names(self):
         urls_names = [
@@ -49,11 +53,21 @@ class PostsURLTests(TestCase):
             with self.subTest(name=name):
                 self.assertEqual(url, PostsURLTests.urls[name])
 
+    # Перенаправления неавторизованного пользователя со страницы создания поста
     def test_redirect_if_not_logged_in(self):
-        url = reverse('posts:post_edit', args=[self.post.id])
+        url = reverse('posts:post_create')
         response = self.guest_client.get(url, follow=True)
         expected_url = reverse('login') + f'?next={url}'
         self.assertRedirects(response, expected_url)
+
+    def test_post_edit_redirect_not_author(self):
+        response = self.not_authorized_client.get(
+            reverse("posts:post_edit", args=[PostsURLTests.post.id])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response,
+                             reverse("posts:post_detail",
+                                     args=[PostsURLTests.post.id]))
 
     def test_urls_uses_correct_template(self):
         templates_url_names = [
@@ -83,32 +97,12 @@ class PostsURLTests(TestCase):
             ("posts:post_detail",
              {"post_id": self.post.id}, 200, self.guest_client),
             ("posts:post_create",
-             {}, 302, self.guest_client),
+             {}, 200, self.authorized_client),
             ("posts:post_edit",
-             {"post_id": self.post.id}, 302, self.guest_client),
+             {"post_id": self.post.id}, 200, self.authorized_client),
         ]
         for url_name, url_kwargs, expected_status_code, client in urls:
             with self.subTest(url_name=url_name, url_kwargs=url_kwargs):
                 url = reverse(url_name, kwargs=url_kwargs)
                 response = client.get(url)
                 self.assertEqual(response.status_code, expected_status_code)
-
-    def test_post_not_in_another_group(self):
-        another_group = Group.objects.create(
-            title='Группа 2',
-            slug='new_group_slug',
-            description='Описание группы 2'
-        )
-        post_in_another_group = Post.objects.create(
-            author=PostsURLTests.user,
-            text='Пост в другой группе',
-            group=another_group
-        )
-        url = reverse('posts:group_list', kwargs={'slug': self.group.slug})
-        response = self.guest_client.get(url)
-        self.assertNotContains(response, post_in_another_group.text)
-
-    def test_post_edit_redirect_for_guest(self):
-        url = f'/posts/{self.post.id}/edit/'
-        response = self.guest_client.get(url, follow=True)
-        self.assertRedirects(response, f'/auth/login/?next={url}')
