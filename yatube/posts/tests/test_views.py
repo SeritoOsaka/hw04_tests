@@ -35,11 +35,26 @@ class PostViewsTests(TestCase):
         self.authorized_client.force_login(PostViewsTests.user)
         self.guest_client = Client()
 
+    def test_group_list_show_correct_context(self):
+        response = self.guest_client.get(
+            reverse('posts:group_list', kwargs={'slug': self.group.slug})
+        )
+        assumed = list(Post.objects.filter(group=self.group.id))
+        self.assertEqual(response.context.get('page_obj').object_list, assumed)
+
+    def test_profile_page_show_correct_context(self):
+        response = self.guest_client.get(
+            reverse('posts:profile', kwargs={'username': self.user})
+        )
+        assumed = list(Post.objects.filter(author=self.user))
+        self.assertEqual(response.context.get('page_obj').object_list, assumed)
+
     def test_post_not_in_another_group(self):
         url = reverse('posts:group_list',
                       kwargs={'slug': self.another_group.slug})
         response = self.guest_client.get(url)
-        self.assertNotIn(self.post.text, response.content.decode())
+        test_posts = response.context.get('page_obj').object_list
+        self.assertNotIn(self.post, test_posts)
 
     def test_post_context(self):
         urls = [
@@ -78,14 +93,3 @@ class PostViewsTests(TestCase):
             reverse('posts:post_create'))
 
         self.assertIsInstance(response.context.get('form'), PostForm)
-
-    def test_posts_displayed_on_group_and_author_pages(self):
-        urls = [
-            reverse('posts:group_list', kwargs={'slug': self.group.slug}),
-            reverse('posts:profile', kwargs={'username': self.user.username}),
-        ]
-        for url in urls:
-            with self.subTest(msg=f'Test {url} page'):
-                response = self.authorized_client.get(url)
-                self.assertEqual(response.status_code, 200)
-                self.assertContains(response, self.post.text)

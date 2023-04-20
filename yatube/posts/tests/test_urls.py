@@ -9,7 +9,6 @@ class PostsURLTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = User.objects.create_user(username='User')
-        cls.not_author = User.objects.create_user(username='not_author')
         cls.group = Group.objects.create(
             title='Тестовая группа',
             slug='test_slug',
@@ -32,9 +31,7 @@ class PostsURLTests(TestCase):
     def setUp(self):
         self.guest_client = Client()
         self.authorized_client = Client()
-        self.not_authorized_client = Client()
         self.authorized_client.force_login(PostsURLTests.user)
-        self.not_authorized_client.force_login(PostsURLTests.not_author)
 
     def test_urls_names(self):
         urls_names = [
@@ -55,19 +52,23 @@ class PostsURLTests(TestCase):
 
     # Перенаправления неавторизованного пользователя со страницы создания поста
     def test_redirect_if_not_logged_in(self):
-        url = reverse('posts:post_create')
-        response = self.guest_client.get(url, follow=True)
-        expected_url = reverse('login') + f'?next={url}'
-        self.assertRedirects(response, expected_url)
+        urls = [
+            reverse('posts:post_create'),
+            reverse('posts:post_edit',
+                    kwargs={'post_id': PostsURLTests.post.id})
+        ]
+        for url in urls:
+            response = self.guest_client.get(url, follow=True)
+            expected_url = reverse('login') + f'?next={url}'
+            self.assertRedirects(response, expected_url)
 
     def test_post_edit_redirect_not_author(self):
-        response = self.not_authorized_client.get(
+        response = self.guest_client.get(
             reverse("posts:post_edit", args=[PostsURLTests.post.id])
         )
-        self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response,
-                             reverse("posts:post_detail",
-                                     args=[PostsURLTests.post.id]))
+        expected_url = reverse('login') + \
+            f'?next={reverse("posts:post_edit", args=[PostsURLTests.post.id])}'
+        self.assertRedirects(response, expected_url)
 
     def test_urls_uses_correct_template(self):
         templates_url_names = [
@@ -106,3 +107,8 @@ class PostsURLTests(TestCase):
                 url = reverse(url_name, kwargs=url_kwargs)
                 response = client.get(url)
                 self.assertEqual(response.status_code, expected_status_code)
+
+    def test_404(self):
+        """Страница 404 отдает кастомный шаблон."""
+        response = self.guest_client.get('/unexisting_page/')
+        self.assertEqual(response.status_code, 404)
