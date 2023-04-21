@@ -42,12 +42,15 @@ class PostViewsTests(TestCase):
         assumed = list(Post.objects.filter(group=self.group.id))
         self.assertEqual(response.context.get('page_obj').object_list, assumed)
 
-    def test_profile_page_show_correct_context(self):
-        response = self.guest_client.get(
-            reverse('posts:profile', kwargs={'username': self.user})
-        )
-        assumed = list(Post.objects.filter(author=self.user))
-        self.assertEqual(response.context.get('page_obj').object_list, assumed)
+    def test_author_object(self):
+        url = reverse('posts:profile', kwargs={'username': self.user})
+        response = self.client.get(url)
+        self.assertEqual(response.context['author'], self.user)
+
+    def test_group_object(self):
+        url = reverse('posts:group_list', kwargs={'slug': self.group.slug})
+        response = self.guest_client.get(url)
+        self.assertEqual(response.context['group'], self.group)
 
     def test_post_not_in_another_group(self):
         url = reverse('posts:group_list',

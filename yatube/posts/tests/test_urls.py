@@ -66,8 +66,10 @@ class PostsURLTests(TestCase):
         response = self.guest_client.get(
             reverse("posts:post_edit", args=[PostsURLTests.post.id])
         )
-        expected_url = reverse('login') + \
-            f'?next={reverse("posts:post_edit", args=[PostsURLTests.post.id])}'
+        expected_url = (
+            f'{reverse("login")}?next='
+            f'{reverse("posts:post_edit", args=[PostsURLTests.post.id])}'
+        )
         self.assertRedirects(response, expected_url)
 
     def test_urls_uses_correct_template(self):
@@ -101,14 +103,11 @@ class PostsURLTests(TestCase):
              {}, 200, self.authorized_client),
             ("posts:post_edit",
              {"post_id": self.post.id}, 200, self.authorized_client),
+            ("posts:group_list",
+             {"slug": self.group.slug + "x"}, 404, self.guest_client),
         ]
         for url_name, url_kwargs, expected_status_code, client in urls:
             with self.subTest(url_name=url_name, url_kwargs=url_kwargs):
                 url = reverse(url_name, kwargs=url_kwargs)
                 response = client.get(url)
                 self.assertEqual(response.status_code, expected_status_code)
-
-    def test_404(self):
-        """Страница 404 отдает кастомный шаблон."""
-        response = self.guest_client.get('/unexisting_page/')
-        self.assertEqual(response.status_code, 404)

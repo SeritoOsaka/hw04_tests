@@ -27,7 +27,7 @@ class PostCreateFormTests(TestCase):
     def test_create_post(self):
         # удаляем все посты из базы данных
         Post.objects.all().delete()
-
+        initial_post_count = Post.objects.count()
         form_data = {
             'text': 'Test text',
             'group': self.group.pk,
@@ -37,10 +37,10 @@ class PostCreateFormTests(TestCase):
             data=form_data,
             follow=True
         )
+        self.assertEqual(Post.objects.count(), initial_post_count + 1)
         self.assertRedirects(response, reverse(
             'posts:profile', kwargs={'username': PostCreateFormTests.user})
         )
-        self.assertTrue(Post.objects.exists())
         post = Post.objects.last()
         self.assertEqual(post.group.id, form_data['group'])
         self.assertEqual(post.author, PostCreateFormTests.user)
