@@ -50,7 +50,6 @@ class PostsURLTests(TestCase):
             with self.subTest(name=name):
                 self.assertEqual(url, PostsURLTests.urls[name])
 
-    # Перенаправления неавторизованного пользователя со страницы создания поста
     def test_redirect_if_not_logged_in(self):
         urls = [
             reverse('posts:post_create'),

@@ -20,6 +20,11 @@ class Post(models.Model):
                               verbose_name='Группа статей',
                               help_text='Выберите тематическую группу '
                                         'в выпадающем списке по желанию')
+    image = models.ImageField(
+        'Картинка',
+        upload_to='posts/',
+        blank=True
+    )
 
     class Meta:
         verbose_name = 'Статья'
@@ -45,3 +50,40 @@ class Group(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class Comment(models.Model):
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        related_name='comments'
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='comments'
+    )
+    text = models.TextField(
+        'Текст комментария',
+        help_text='Введите текст комментария'
+    )
+
+
+class Follow(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="follower"
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="following"
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['author', 'user'], name='unique_following'
+            )
+        ]
